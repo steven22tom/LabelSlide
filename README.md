@@ -96,6 +96,7 @@ boxes:
 
 * [OpenSlide](https://openslide.org/) 
 * [OpenSeadragon](https://openseadragon.github.io/)
+* [OpenSeadragonScalebar](https://github.com/usnistgov/OpenSeadragonScalebar)
 * [Fabric.js](http://fabricjs.com/)
 * [Bootstrap](https://getbootstrap.com/)
 
