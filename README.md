@@ -20,6 +20,9 @@ pip install -r requirements.txt
 python label_tool_server.py
 ```
 access 127.0.0.1:5000 (as default)
+
+**If show error "Could not find module 'libopenslide-0.dll'". Please download [libvips](https://github.com/libvips/libvips/releases) and unzip to bin folder**
+
 ## Usage
 
 ### Config
