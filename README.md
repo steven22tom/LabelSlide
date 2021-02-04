@@ -29,7 +29,7 @@ access 127.0.0.1:5000 (as default)
 There's two config file.
 
 **app_config.py**  
-Including **HOST**, **PORT** for the app and the **SLIDE_CONFIG** for slide config.  
+Including **HOST**, **PORT** for the app and the **SLIDE_CONFIG** for slide config (the file path of config.yaml).  
 *ps: parameter name must be uppercase*
 
 **config.yaml**  
