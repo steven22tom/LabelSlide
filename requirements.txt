@@ -1,0 +1,4 @@
+openslide_python==1.1.2
+Flask==1.1.2
+numpy==1.19.2
+ruamel.base==1.0.0

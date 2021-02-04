@@ -1,0 +1,30 @@
+slide_dir: D:\python_test\Dataset\cervical
+label_dir: D:\python_test\Dataset\cervical\label
+class:
+- id: 0
+  name: A
+  color: '#2196f3'
+- id: 1
+  name: B
+  color: '#0014a8'
+- id: 2
+  name: C
+  color: '#ff1100'
+- id: 3
+  name: D
+  color: '#ad5414'
+- id: 4
+  name: E
+  color: '#8937d9'
+- id: 5
+  name: F
+  color: '#082e00'
+- id: 6
+  name: G
+  color: '#b58f3e'
+- id: 7
+  name: H
+  color: '#6286b2'
+- id: 8
+  name: I
+  color: '#f08914'
