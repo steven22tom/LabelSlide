@@ -815,8 +815,8 @@ labelTool.prototype = {
             item = this.labelBoxes[i];
             x1 = item.shape.left;
             y1 = item.shape.top;
-            x2 = x1 + item.shape.width;
-            y2 = y1 + item.shape.height;
+            x2 = x1 + item.shape.width * item.shape.scaleX;
+            y2 = y1 + item.shape.height * item.shape.scaleY;
             //viewport(OSD) point from pixel(Fabric)
             vP1 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x1,y1));
             vP2 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x2,y2));
