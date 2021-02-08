@@ -108,10 +108,4 @@ class LabelTool():
             box['h'] = round(box['h'])
         with open(file, 'w', encoding='utf8') as f:
              yaml.dump(boxes, f, Dumper=yaml.RoundTripDumper)
-    
-if __name__ == '__main__':
-    tool = LabelTool('./config.yaml')
-    print(tool.class_num)
-    asdf = tool.get_slide_file('C20200175')
-
-
+        self.slide_index[id]['labeled'] = True
