@@ -685,13 +685,19 @@ labelTool.prototype = {
         delete this.labelBoxes[id];
     },
     removeSelected: function() {
-        if(this.selectedBox)
+        if(this.selectedBox) {
             this._canvas.remove(this.selectedBox);
             if(this.labelBoxes[this.selectedBox.tab]) {
                 var classID = this.labelBoxes[this.selectedBox.tab].classID;
                 this.updateLabelCount(classID, false);
                 delete this.labelBoxes[this.selectedBox.tab];
             }
+            if(this.hoveredBox) {
+                if(this.hoveredBox.tab == this.selectedBox.tab) {
+                    this.hoveredBox = null;
+                }
+            }
+        }
     },
     resize: function () {
         this._canvas.setWidth(this._osdViewer.canvas.clientWidth);
