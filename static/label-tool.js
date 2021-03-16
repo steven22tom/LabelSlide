@@ -1,30 +1,30 @@
 function labelTool() {
-    //main components
-    this._osdViewer = null; //Openseadragon viewer
+    // main components
+    this._osdViewer = null; // Openseadragon viewer
     this._labelViewerDiv = null;
-    this._canvas = null; //Fabric.js fabric.Canvas
+    this._canvas = null; // Fabric.js fabric.Canvas
     
-    //some states, variable for viewer
+    // some states, variable for viewer
     this.hoveredBox = null;
     this.selectedBox = null;
     this.lastCenter = null; 
     this.lastZoom = null;
-    this.editMode = false; //if true, show auxiliary line
+    this.editMode = false; // if true, show auxiliary line
     this.drawing = false;
     this.boxDrag = false;
     this.startPoint = null;
     this.mouseOut = false;
 
-    //auxiliary box, line
+    // auxiliary box, line
     this.auxBox = null;
     this.xAuxLine = null;
     this.YAuxLine = null;
 
-    //slide 
+    // slide 
     this.currentSlide = null; // id
     
 
-    //label class
+    // label class
     this.labelClassEdit = false;
     this.labelClasses = null
     this.selectedClass = {
@@ -33,14 +33,14 @@ function labelTool() {
         color: null
     }
 
-    //config
+    // config
     this.dirConfig = null;
 
-    //label box for current slide
+    // label box for current slide
     this.labelBoxes = {};
     this.saveState = true;
 
-    //modal
+    // modal
     this.dirConfigModal = null;
     this.labelClassEditModal = null;
 }
@@ -96,7 +96,7 @@ labelTool.prototype = {
         this._labelViewerDiv.style.top = 0;
         this._labelViewerDiv.style.width = '100%';
         this._labelViewerDiv.style.height = '100%';
-        //this._labelViewerDiv.style.zIndex = '1000';
+        // this._labelViewerDiv.style.zIndex = '1000';
 
         this._osdViewer.canvas.appendChild(this._labelViewerDiv);
 
@@ -144,7 +144,7 @@ labelTool.prototype = {
             opacity: 0.5,
             visible: false,
             strokeWidth: 2,
-            stroke: 'rgba(100,100,100,1)',//"#880E4F",
+            stroke: 'rgba(100,100,100,1)',// "#880E4F",
             strokeUniform: true,
             _controlsVisibility:{
                 mtr: false
@@ -159,7 +159,7 @@ labelTool.prototype = {
             'mouse:over':(e) => {
                 if(this.drawing) return;
                 if(e.target) {
-                    //some time the auxline will by over
+                    // sometimes the auxline will by over
                     if(e.target.tab == 'aux') return; 
                     this.hiddenXYLine();
                     this.hoveredBox = e.target
@@ -167,8 +167,9 @@ labelTool.prototype = {
                     this._canvas.renderAll();
                 }
                 else {
-                    //move in the canvas
-                    this.mouseOut = false;
+                    // move in the canvas
+                    // using 'canvas-enter' event in osdViewer to change the mouse state
+                    // this.mouseOut = false;
                     if(this.editMode) {
                         this.showXYLine();
                         this._canvas.renderAll();
@@ -177,7 +178,7 @@ labelTool.prototype = {
             },
             'mouse:out':(e) => {
                 if(e.target) {
-                    //some time the auxline will by over
+                    // some time the auxline will by over
                     if(e.target.tab != 'aux') {
                         if(this.boxDrag)
                             return;
@@ -189,9 +190,9 @@ labelTool.prototype = {
                         }
                     }
                     else {
-                        //here has some error that the mouse hover the auxline 
-                        //when mouse move much close to the line x=0 or y=0
-                        //so we need check whether the mouse is out the canvas again
+                        // here has some error that the mouse hover the auxline 
+                        // when mouse move much close to the line x=0 or y=0
+                        // so we need check whether the mouse is out the canvas again
                         if(e.e.layerX <0 || e.e.layerX > this._canvas.width || e.e.layerY <0 || e.e.layerY > this._canvas.height) {
                             this.hiddenXYLine();
                             this._canvas.renderAll();
@@ -199,16 +200,17 @@ labelTool.prototype = {
                     }
                 }
                 else {
-                    //move out the canvas
+                    // move out the canvas
                     this.hiddenXYLine();
                     this._canvas.renderAll();
-                    this.mouseOut = true;
+                    // using 'canvas-exit' event in osdViewer to change the mouse state
+                    // this.mouseOut = true;
                 }
             },
             'mouse:down':(e) => {
                 if(e.target && e.target.selectable) {
-                    //select any box and allow to edit it no mater size or label
-                    //if select the auxline, will egnore
+                    // select any box and allow to edit it no mater size or label
+                    // if select the auxline, will egnore
                     this.lockViewer();
                     this.drawing = false;
                     if(this.selectedBox) this.selectedBox.set('strokeDashArray', [10, 10]);
@@ -229,7 +231,7 @@ labelTool.prototype = {
                 }
             },
             'mouse:up':(e) => {
-                //finish draw rect
+                // finish draw rect
                 if(this.drawing) {
                     this.drawing = false;
                     this.auxBox.set("visible", false);
@@ -276,7 +278,7 @@ labelTool.prototype = {
                 }
                 if(this.boxDrag) {
                     this.lockViewer();
-                    //to be completed
+                    // to be completed
                     /* if(this.isBoxOutCanvas(this.selectedBox)) {
                         var loc = this.limitBox(this.selectedBox);
                         this.selectedBox.set("left", loc.left);
@@ -291,14 +293,14 @@ labelTool.prototype = {
                 this.boxDrag = true;
             },
             'object:scaling':(e) => {
-                //temporarily useless
+                // temporarily useless
             },
             'object:moved':(e) => {
                 this.boxDrag = false;
                 this.saveState = false;
             },
             'object:scaled':(e) => {
-                //temporarily useless
+                // temporarily useless
                 this.saveState = false;
             }
         });
@@ -340,6 +342,12 @@ labelTool.prototype = {
             this._canvas.setViewportTransform(this._canvas.viewportTransform);
             this.lastZoom = currentZoom;
             this.lastCenter = currentCenter;
+        });
+        this._osdViewer.addHandler('canvas-enter', (e) => {
+            this.mouseOut = false;
+        })
+        this._osdViewer.addHandler('canvas-exit', (e) => {
+            this.mouseOut = true;
         })
     },
     initLabelClass: function() {
@@ -356,11 +364,10 @@ labelTool.prototype = {
         });
     },
     initControl: function() {
-        
-
+        // temporarily useless
     },
     initElementEvent: function() {
-        //slide and label directory config
+        // slide and label directory config
         $('.slide-file').click((e) => {
             var res = true;
             if(!this.saveState) {
@@ -384,7 +391,7 @@ labelTool.prototype = {
             this.saveDirConfig();
         });
 
-        //label box control
+        // label box control
         $("#label-box-select").click((e) => {
             this.viewMode();
         });
@@ -398,7 +405,7 @@ labelTool.prototype = {
             this.saveLabelBoxes();
         });
 
-        //label class control  
+        // label class control  
         $('.label-class').click((e) => {
             $('.current-class').removeClass('current-class')
             $(e.delegateTarget).addClass('current-class');
@@ -452,7 +459,7 @@ labelTool.prototype = {
 
                 this.selectedClass.name = name;
                 this.selectedClass.color = color;
-                //update box color
+                // update box color
                 for(i in this.labelBoxes) {
                     item = this.labelBoxes[i];
                     if(item.classID == id) {
@@ -557,7 +564,7 @@ labelTool.prototype = {
         this.editMode = true;
         this.showXYLine();
         this._canvas.renderAll();
-        //this.lockViewer();
+        // this.lockViewer();
     },
     editModeOff: function() {
         this.editMode = false;
@@ -565,7 +572,7 @@ labelTool.prototype = {
         this.unlockViewer();
         this._canvas.renderAll();
     },
-    lockViewer: function() { //the viewer can not drag or scaling
+    lockViewer: function() { // the viewer can not drag or scaling
         this._osdViewer.zoomPerScroll = 1;
         this._osdViewer.panHorizontal = false;
         this._osdViewer.panVertical = false;
@@ -640,7 +647,7 @@ labelTool.prototype = {
             box.shape.set('height', h);
         }
     },
-    //if the mouse move out the canvas, update the point coordinate
+    // if the mouse move out the canvas, update the point coordinate
     isPointOutCanvas: function(point) {
         return point.x < 0 || point.x > this._canvas.width || point.y < 0 || point.y > this._canvas.height;
     },
@@ -697,6 +704,7 @@ labelTool.prototype = {
                     this.hoveredBox = null;
                 }
             }
+            this.selectedBox = null;
         }
     },
     resize: function () {
@@ -706,7 +714,7 @@ labelTool.prototype = {
     // *******************************************************
     // main operation
     // *******************************************************
-    //slide
+    // slide
     openSlide: function(url, mpp) {
         this._osdViewer.open(url);
         this._osdViewer.scalebar({
@@ -730,7 +738,7 @@ labelTool.prototype = {
             location.reload();
         });
     },
-    //label class
+    // label class
     getLabelClassInfo: function(id) {
         var index = this.labelClasses.findIndex((value, index, arr) => {
             return value.id == id
@@ -756,7 +764,7 @@ labelTool.prototype = {
     emptyLabelCount: function() {
         $('.label-class .label-class-count').html('[0]');
     },
-    updateLabelCount: function(classID, plus) { //plus: true +1; false one -1
+    updateLabelCount: function(classID, plus) { // plus: true +1; false one -1
         if(Number.isInteger(classID)) {
             var count = $('#class_' + classID + ' .label-class-count').html();
             count = parseInt(count.slice(1, -1));
@@ -765,7 +773,7 @@ labelTool.prototype = {
             $('#class_' + classID + ' .label-class-count').html('[' + count + ']');
         }
     },
-    //label box
+    // label box
     updateBoxClass: function(id, classID) {
         this.updateLabelCount(this.labelBoxes[id].classID, false);
         this.labelBoxes[id].classID = classID;
@@ -785,10 +793,10 @@ labelTool.prototype = {
                 var h = box.h;
                 var x2 = x1 + w;
                 var y2 = y1 + h;
-                //image(slide) point to viewport(OSD)
+                // image(slide) point to viewport(OSD)
                 vP1 = this._osdViewer.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(x1,y1));
                 vP2 = this._osdViewer.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(x2,y2));
-                //viewport(OSD) point to pixel(Fabric)
+                // viewport(OSD) point to pixel(Fabric)
                 fP1 = this._osdViewer.viewport.pixelFromPoint(vP1);
                 fP2 = this._osdViewer.viewport.pixelFromPoint(vP2);
 
@@ -823,10 +831,10 @@ labelTool.prototype = {
             y1 = item.shape.top;
             x2 = x1 + item.shape.width * item.shape.scaleX;
             y2 = y1 + item.shape.height * item.shape.scaleY;
-            //viewport(OSD) point from pixel(Fabric)
+            // viewport(OSD) point from pixel(Fabric)
             vP1 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x1,y1));
             vP2 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x2,y2));
-            //image(slide) point from viewport(OSD)
+            // image(slide) point from viewport(OSD)
             iP1 = this._osdViewer.viewport.viewportToImageCoordinates(vP1.x, vP1.y);
             iP2 = this._osdViewer.viewport.viewportToImageCoordinates(vP2.x, vP2.y);
             var box = {
