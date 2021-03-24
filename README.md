@@ -29,7 +29,7 @@ access 127.0.0.1:5000 (as default)
 There's two config file.
 
 **app_config.py**  
-Including **HOST**, **PORT** for the app and the **SLIDE_CONFIG** for slide config (the file path of config.yaml).  
+Including **HOST**, **PORT** for the app and the **SLIDE_CONFIG** for slide config(the file path of config.yaml).  
 *ps: parameter name must be uppercase*
 
 **config.yaml**  
@@ -69,13 +69,14 @@ class:
 **If you want to read slide in other formats, you should modify code in label_tool.py by yourself.**
 
 ### Annotation
-**Only support rect box currently**
+Support rectangle box currently. **Adding support for polygon box**
 
 **Hotkeys**
 Key|Function
 --|--
 q|View Mode
-e|Create new rect box
+e|Create new rectangle box
+r|Create new polygon box
 Ctrl + s|Save
 del|Delete the selected rect box
 
@@ -86,17 +87,26 @@ Take annotation for MIRAX (.mrxs) as an example
 slide: C20200174
 boxes:
 - class: 0
+  type:rect
   x: 30749
   y: 70121
   w: 468
   h: 434
+- class: 1
+  type: poly
+  points:
+  - x: 33813
+    y: 62176
+  - x: 33931
+    y: 62571
+  - x: 34099
+    y: 62308
 ```
 **x,y** is the top left pixel and **w,h** is the region size in the level 0 reference frame(highest resolution)
 ## Related
 
 * [OpenSlide](https://openslide.org/) 
 * [OpenSeadragon](https://openseadragon.github.io/)
-* [OpenSeadragonScalebar](https://github.com/usnistgov/OpenSeadragonScalebar)
 * [Fabric.js](http://fabricjs.com/)
 * [Bootstrap](https://getbootstrap.com/)
 
