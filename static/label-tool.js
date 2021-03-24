@@ -1,4 +1,4 @@
-function labelTool() {
+function LabelTool() {
     // main components
     this._osdViewer = null; // Openseadragon viewer
     this._labelViewerDiv = null;
@@ -9,21 +9,26 @@ function labelTool() {
     this.selectedBox = null;
     this.lastCenter = null; 
     this.lastZoom = null;
-    this.editMode = false; // if true, show auxiliary line
+    this.editMode = false; 
+    this.drawMode = false; // if true, show auxiliary line
     this.drawing = false;
     this.boxDrag = false;
     this.startPoint = null;
+    this.endPoint = null;
     this.mouseOut = false;
+    this.drawRectangle = true;
 
-    // auxiliary box, line
-    this.auxBox = null;
-    this.xAuxLine = null;
-    this.YAuxLine = null;
-
-    // slide 
-    this.currentSlide = null; // id
+   // auxiliary box, line, polygon
+   this.auxBoxRectangle = null;
+   this.auxBoxPolygon = null;
+   this.auxLineToStart = null;
+   this.auxLineToEnd = null;
+   this.xAuxLine = null;
+   this.YAuxLine = null;
+   this.auxPoints = [];
+   // slide 
+   this.currentSlide = null; // id
     
-
     // label class
     this.labelClassEdit = false;
     this.labelClasses = null
@@ -45,18 +50,18 @@ function labelTool() {
     this.labelClassEditModal = null;
 }
 
-labelTool.prototype = {
+LabelTool.prototype = {
     init: function(viewerDivID, navDivID) {
         this.initOSDViewer(viewerDivID, navDivID);
         this.initFabric();
         this.initAuxLine();
-        this.initAuxBox();
+        this.initAuxBoxRectangle();
         this.initCusEvent();
         this.initControl();
         this.initElementEvent();
         this.initModal();
         this.initLabelClass();
-        this.editModeOff();
+        this.viewModeOn();
     },
     initOSDViewer: function(viewerDivID, navDivID) {
         this._osdViewer = new OpenSeadragon({
@@ -106,7 +111,8 @@ labelTool.prototype = {
 
         this._canvas = new fabric.Canvas('labelCanvas')
         this._canvas.selection = false;
-        
+        this._canvas.preserveObjectStacking = true;
+    
         fabric.Object.prototype.objectCaching = false;
         fabric.Object.prototype.cornerStyle = 'circle';
         fabric.Object.prototype.cornerSize = 8
@@ -116,25 +122,41 @@ labelTool.prototype = {
     },
     initAuxLine: function() {
         this.xAuxLine = new fabric.Line([0, 100, this._canvas.width, 100],{
-            left: -1,
-            top: -1,
             stroke: 'rgb(100,100,100)',
             strokeDashArray: [5, 5],
             tab: 'aux',
-            selectable : false
+            selectable : false,
+            visible: false
         });
         this.yAuxLine = new fabric.Line([100, 0, 100, this._canvas.height],{
-            left: -1,
-            top: -1,
             stroke: 'rgb(100,100,100)',
             strokeDashArray: [5, 5],
             tab: 'aux',
-            selectable: false
+            selectable: false,
+            visible: false
         });
-        this._canvas.add(this.xAuxLine)
-        this._canvas.add(this.yAuxLine)
+
+        this.auxLineToStart = new fabric.Line([0, 0, 0, 0], {
+            stroke: 'rgb(100,100,100)',
+            strokeDashArray: [5, 5],
+            tab: 'aux',
+            selectable : false,
+            visible: false
+        });
+        this.auxLineToEnd = new fabric.Line([0, 0, 0, 0], {
+            stroke: 'rgb(100,100,100)',
+            strokeDashArray: [5, 5],
+            tab: 'aux',
+            selectable : false,
+            visible: false
+        });
+
+        this._canvas.add(this.xAuxLine);
+        this._canvas.add(this.yAuxLine);
+        this._canvas.add(this.auxLineToStart);
+        this._canvas.add(this.auxLineToEnd);
     },
-    initAuxBox: function() {
+    initAuxBoxRectangle: function() {
         var rect = {
             left: 0,
             top: 0,
@@ -144,137 +166,182 @@ labelTool.prototype = {
             opacity: 0.5,
             visible: false,
             strokeWidth: 2,
-            stroke: 'rgba(100,100,100,1)',// "#880E4F",
+            stroke: 'rgba(80,80,80,1)',// "#880E4F",
             strokeUniform: true,
             _controlsVisibility:{
                 mtr: false
             },
             tab: 'auxbox'
         };
-        this.auxBox = new labelBox(rect);
-        this._canvas.add(this.auxBox.shape);
+        this.auxBoxRectangle = new LabelBoxRectangle(rect);
+        this._canvas.add(this.auxBoxRectangle.shape);
+    },
+    initAuxBoxPolygon: function(points) {
+        var polygon = {
+            points: points,
+            fill: 'rgba(160,160,160,0.4)',
+            opacity: 0.5,
+            strokeWidth: 2,
+            stroke: 'rgba(80,80,80,1)',// "#880E4F",
+            strokeUniform: true,
+            _controlsVisibility:{
+                mtr: false
+            },
+            tab: 'auxbox',
+            selectable : false
+        };
+        this.auxBoxPolygon = new LabelBoxPolygon(polygon);
+        this._canvas.add(this.auxBoxPolygon.shape);
     },
     initCusEvent: function() {
         this._canvas.on({
             'mouse:over':(e) => {
-                if(this.drawing) return;
-                if(e.target) {
-                    // sometimes the auxline will by over
-                    if(e.target.tab == 'aux') return; 
-                    this.hiddenXYLine();
-                    this.hoveredBox = e.target
-                    e.target.opacity = 1;
-                    this._canvas.renderAll();
+                if(this.drawMode) {
+                    if(e.target) {
+                        // sometime the auxline will by hovered, ignore
+                        if(e.target.tab == 'aux') return;
+                        e.target.set('selectable', false);
+                    }
                 }
                 else {
-                    // move in the canvas
-                    // using 'canvas-enter' event in osdViewer to change the mouse state
-                    // this.mouseOut = false;
-                    if(this.editMode) {
-                        this.showXYLine();
+                    if(e.target) {
+                        // this.hiddenXYLine();
+                        this.hoveredBox = e.target
+                        e.target.opacity = 1;
+                        if(!e.target.selectable && e.target.tab != 'aux') {
+                            e.target.selectable = true;
+                        }
                         this._canvas.renderAll();
                     }
                 }
             },
             'mouse:out':(e) => {
-                if(e.target) {
-                    // some time the auxline will by over
-                    if(e.target.tab != 'aux') {
-                        if(this.boxDrag)
-                            return;
-                        e.target.opacity = 0.5;
-                        this.hoveredBox = null;
-                        if(this.editMode || this.drawing) {
-                            this.showXYLine();
-                            this._canvas.renderAll();
-                        }
-                    }
-                    else {
-                        // here has some error that the mouse hover the auxline 
-                        // when mouse move much close to the line x=0 or y=0
-                        // so we need check whether the mouse is out the canvas again
-                        if(e.e.layerX <0 || e.e.layerX > this._canvas.width || e.e.layerY <0 || e.e.layerY > this._canvas.height) {
-                            this.hiddenXYLine();
-                            this._canvas.renderAll();
-                        }
+                if(this.drawMode) {
+                    if(e.target) { 
+                        if(e.target.tab == 'aux') return;
+                        e.target.set('selectable', true);
                     }
                 }
                 else {
-                    // move out the canvas
-                    this.hiddenXYLine();
-                    this._canvas.renderAll();
-                    // using 'canvas-exit' event in osdViewer to change the mouse state
-                    // this.mouseOut = true;
+                    if(e.target) {
+                        // sometimes the auxline will by hovered, ignore
+                        if(e.target.tab == 'aux') return;
+                        if(this.boxDrag) return;
+                        e.target.opacity = 0.5;
+                        this.hoveredBox = null;
+                        this._canvas.renderAll();
+                    }
                 }
             },
             'mouse:down':(e) => {
-                if(e.target && e.target.selectable) {
-                    // select any box and allow to edit it no mater size or label
-                    // if select the auxline, will egnore
-                    this.lockViewer();
-                    this.drawing = false;
+                if(this.drawMode) {
+                    if(this.drawRectangle) {
+                        this.drawing = true;
+                        this.startPoint = e.pointer;
+                    }
+                    else {
+                        newPoint = {};
+                        newPoint.x = e.pointer.x;
+                        newPoint.y = e.pointer.y;
+                        this.auxPoints.push(newPoint);
+                        if(!this.startPoint) {
+                            this.drawing = true;
+                            this.startPoint = newPoint;
+                            this.auxLineToStart.set({'x1':this.startPoint.x, 'y1': this.startPoint.y});
+                            this.auxLineToStart.set({'x2':this.startPoint.x, 'y2': this.startPoint.y});
+                            this.auxLineToStart.visible = true;
+                        }
+                        else {
+                            if(!this.endPoint) {
+                                this.auxLineToEnd.set({'x1':newPoint.x, 'y1': newPoint.y});
+                                this.auxLineToEnd.set({'x2':newPoint.x, 'y2': newPoint.y});
+                                this.auxLineToEnd.visible = true;
+                                this.initAuxBoxPolygon(this.auxPoints); 
+                            }
+                            this.endPoint = newPoint;     
+                        }
+                        this._canvas.renderAll();
+                    }
+                }
+                else if(e.target && e.target.selectable) {
                     if(this.selectedBox) this.selectedBox.set('strokeDashArray', [10, 10]);
                     e.target.set('strokeDashArray', [0, 0]);
                     this.selectedBox = e.target;
                     this._canvas.renderAll();
+                    this.editModeOn();
                 }
                 else {
-                    if(this.selectedBox){
+                    if(this.selectedBox) {
                         this.selectedBox.set('strokeDashArray', [10, 10]);
                         this._canvas.renderAll();
                         this.selectedBox = null;
                     }
-                    if(this.editMode) {
-                        this.drawing = true;
-                        this.startPoint = e.pointer;
-                    }
+                    this.viewModeOn();
                 }
             },
             'mouse:up':(e) => {
-                // finish draw rect
-                if(this.drawing) {
-                    this.drawing = false;
-                    this.auxBox.set("visible", false);
-                    var point = e.pointer;
-                    if(this.isPointOutCanvas(point))
-                        point = this.limitPoint(point);
-                    var loc = this.computeLocation(this.startPoint, point);
-
-                    if(this.isRational(loc)) {
-                        var newBox = this.newLabelBox(loc);
-                        this.addNewBox(newBox);
-                        this.saveState = false;
-                    }
-                    this.editModeOff();
-                }
-                if (e.target) {
-                    if(this.selectedBox) {
-                        this.editModeOff();
-                    }
-                }
-            },
+                               // finish draw rect
+                               if(this.drawing && this.drawRectangle) {
+                                this.auxBoxRectangle.set("visible", false);
+                                var point = e.pointer;
+                                if(this.isPointOutCanvas(point))
+                                    point = this.limitPoint(point);
+                                var loc = this.computeLocation(this.startPoint, point);
+            
+                                if(this.isRational(loc)) {
+                                    var newBox = this.newLabelBoxRectangle(loc);
+                                    this.addNewBox(newBox);
+                                    this.saveState = false;
+                                    this._canvas.setActiveObject(newBox.shape);
+                                    this.selectedBox = newBox.shape;
+                                    this.editModeOn();
+                                }
+                                this.drawing = false;
+                                this.startPoint = null;
+                            }
+                        },
             'mouse:move':(e) => {
-                if(this.drawing) {
-                    if(this.startPoint) {
-                        var point = e.pointer;
-                        if(this.isPointOutCanvas(point))
-                            point = this.limitPoint(point);
-                        var loc = this.computeLocation(this.startPoint, point);
-                        this.auxBox.set("left", loc.left);
-                        this.auxBox.set("top", loc.top);
-                        this.auxBox.set("width", loc.width);
-                        this.auxBox.set("height", loc.height);
-                        this.auxBox.set("visible", true);
+                this.xAuxLine.set('y1',e.pointer.y);
+                this.xAuxLine.set('y2',e.pointer.y);
+                this.yAuxLine.set('x1',e.pointer.x);
+                this.yAuxLine.set('x2',e.pointer.x);
+                if(this.drawMode) {
+                    
+                    if(this.drawing) {
+                    // draw rectangle box
+                        if(this.drawRectangle){
+                            if(!this.startPoint) return;
+                            if(this.startPoint) {
+                                var point = e.pointer;
+                                if(this.isPointOutCanvas(point))
+                                    point = this.limitPoint(point);
+                                var loc = this.computeLocation(this.startPoint, point);
+                                this.auxBoxRectangle.set("left", loc.left);
+                                this.auxBoxRectangle.set("top", loc.top);
+                                this.auxBoxRectangle.set("width", loc.width);
+                                this.auxBoxRectangle.set("height", loc.height);
+                                this.auxBoxRectangle.set("visible", true);
+                            }
+                            else {
+                                this.startPoint = e.pointer;
+                            }
+                        }
+                        // draw ploygon box
+                        else {
+                            if(!this.startPoint) return;
+                            if(!this.endPoint) {
+                                this.auxLineToStart.set({'x1':this.startPoint.x, 'y1': this.startPoint.y});
+                                this.auxLineToStart.set({'x2':e.pointer.x, 'y2': e.pointer.y});
+                            }
+                            else {
+                                this.auxLineToStart.set({'x1':this.startPoint.x, 'y1': this.startPoint.y});
+                                this.auxLineToStart.set({'x2':e.pointer.x, 'y2': e.pointer.y});
+                                this.auxLineToEnd.set({'x1':this.endPoint.x, 'y1': this.endPoint.y});
+                                this.auxLineToEnd.set({'x2':e.pointer.x, 'y2': e.pointer.y});
+                            }
+                        } 
                     }
-                    else {
-                        this.startPoint = e.pointer;
-                    }
-                }
-                if(!e.target || this.drawing) {
-                    this.xAuxLine.set('y1',e.pointer.y);
-                    this.xAuxLine.set('y2',e.pointer.y);
-                    this.yAuxLine.set('x1',e.pointer.x);
-                    this.yAuxLine.set('x2',e.pointer.x);
+                    this._canvas.renderAll();
                 }
                 if(this.boxDrag) {
                     this.lockViewer();
@@ -287,46 +354,88 @@ labelTool.prototype = {
                         this.selectedBox.set("height", loc.height);
                     }; */
                 }
-                this._canvas.renderAll();
+               
+            },
+            'mouse:dblclick':(e) => {
+                if(this.drawMode && this.drawing && !this.drawRectangle) {
+                    if(this.auxPoints.length < 3) return;
+                    this.auxPoints.splice(this.auxPoints.length-1,1);
+                    var newPoints = []
+
+                    JSON.parse(JSON.stringify(this.auxPoints));
+                    
+                    for(i in this.auxBoxPolygon.shape.points) {
+                        var point = fabric.util.transformPoint({
+                            x: (this.auxBoxPolygon.shape.points[i].x  - this.auxBoxPolygon.shape.pathOffset.x),
+                            y: (this.auxBoxPolygon.shape.points[i].y  - this.auxBoxPolygon.shape.pathOffset.y)
+                            }, fabric.util.multiplyTransformMatrices(
+                                this.auxBoxPolygon.shape.canvas.viewportTransform,
+                                this.auxBoxPolygon.shape.calcTransformMatrix()
+                            ));
+                        newPoints.push(point);
+                    }
+                    var newBox = this.newLabelBoxPolygon(newPoints);
+
+                    this._canvas.remove(this.auxBoxPolygon.shape);
+                    this.auxBoxPolygon = null;
+                    this.auxPoints = [];
+                    this.auxLineToStart.visible = false;
+                    this.auxLineToEnd.visible = false;
+                    this.startPoint = null;
+                    this.endPoint = null;
+                    
+                    this.addNewBox(newBox);
+                    this._changeEditMode(newBox.shape, newBox.shape.cornerColor);
+                    this._canvas.setActiveObject(newBox.shape);
+                    this.selectedBox = newBox.shape;
+                    this._canvas.requestRenderAll();
+                    this.editModeOn();
+
+                    this.drawing = false;
+                    this.saveState = false;
+                } 
             },
             'object:moving':(e) => {
+                this.lockViewer();
                 this.boxDrag = true;
             },
             'object:scaling':(e) => {
-                // temporarily useless
+                this.lockViewer();
             },
             'object:moved':(e) => {
                 this.boxDrag = false;
-                this.saveState = false;
             },
             'object:scaled':(e) => {
                 // temporarily useless
+            },
+            'object:modified': (e) => {
+                this.unlockViewer();
                 this.saveState = false;
             }
         });
-        this._osdViewer.addHandler('canvas-press', (e)=>{
+        this._osdViewer.addHandler('canvas-press', (e) => {
             this.lastCenter = this._osdViewer.viewport.getCenter(true);
             this._canvas._onMouseDown(e.originalEvent);
             e.originalEvent.stopPropagation();
         }); 
-        this._osdViewer.addHandler('canvas-release', (e)=>{
+        this._osdViewer.addHandler('canvas-release', (e) => {
             this._canvas._onMouseUp(e.originalEvent)
         });     
-        this._osdViewer.addHandler('canvas-click', (e)=>{
+        this._osdViewer.addHandler('canvas-click', (e) => {
             e.preventDefaultAction = true;
         });     
-        this._osdViewer.addHandler('canvas-drag', (e)=> {
+        this._osdViewer.addHandler('canvas-drag', (e) => {
             this._canvas._onMouseMove(e.originalEvent)
         });
-        this._osdViewer.addHandler('zoom', (e)=>{
+        this._osdViewer.addHandler('zoom', (e) => {
             this.lastZoom = this._osdViewer.viewport.getZoom(true);
             this.lastCenter = this._osdViewer.viewport.getCenter(true);   
         });
-        this._osdViewer.addHandler('open', (e)=>{
+        this._osdViewer.addHandler('open', (e) => {
             this.loading = false;
             this.getLabelBoxes();
         });
-        this._osdViewer.addHandler('viewport-change',(e)=>{
+        this._osdViewer.addHandler('viewport-change', (e) => {
             if(!this.lastZoom)
                 this.lastZoom = this._osdViewer.viewport.getZoom(true);
             if(!this.lastCenter)
@@ -343,11 +452,18 @@ labelTool.prototype = {
             this.lastZoom = currentZoom;
             this.lastCenter = currentCenter;
         });
+        this._osdViewer.addHandler('canvas-scroll', (e) => {
+            // temporarily useless
+        });
         this._osdViewer.addHandler('canvas-enter', (e) => {
             this.mouseOut = false;
+            if(this.drawMode) this.showXYLine();
+            this._canvas.renderAll();
         })
         this._osdViewer.addHandler('canvas-exit', (e) => {
             this.mouseOut = true;
+            if(this.drawMode) this.hiddenXYLine()
+            this._canvas.renderAll();
         })
     },
     initLabelClass: function() {
@@ -392,19 +508,28 @@ labelTool.prototype = {
         });
 
         // label box control
-        $("#label-box-select").click((e) => {
-            this.viewMode();
+        $('#label-box-select').click((e) => {
+            this.viewModeOn();
         });
-        $("#label-box-draw").click((e) => {
-            this.drawMode();
+        $('#label-box-draw-rectangle').click((e) => {
+            this.drawModeOn(true);
         });
-        $("#label-box-delete").click((e) => {
+        $('#label-box-draw-polygon').click((e) => {
+            this.drawModeOn(false);
+        });
+        $('#label-box-delete').click((e) => {
             this.removeSelected();
         });
-        $("#label-box-save").click((e) => {
+        $('#label-box-save').click((e) => {
             this.saveLabelBoxes();
         });
+        $('#slide-id-filter').bind('input propertychange', (e) => {
+            this.slideFileFilter();
+        });
 
+        $('#slide-state-filter').change((e) =>{
+            this.slideFileFilter();
+        });
         // label class control  
         $('.label-class').click((e) => {
             $('.current-class').removeClass('current-class')
@@ -431,6 +556,7 @@ labelTool.prototype = {
             }
             $('#label-class-color').val(randomColor());
             $('#label-class-name').attr('data-id', newID);
+            $('#label-class-name').val(null);
             this.labelClassEditModal.show();
         });
         $('#label-class-edit').click((e) => {
@@ -480,7 +606,6 @@ labelTool.prototype = {
                     color: color
                 } 
                 this.labelClasses.push(newClass);
-                
                 var html = '<div class="label-class mb-1" id="class_' + id +'" ' + 
                     'data-id="' + id + '" data-name="' + name + '" data-color="' + color + '">' +
                     '<div class="label-class-color" ' +
@@ -538,11 +663,20 @@ labelTool.prototype = {
                 }
             }
         });
+        $('#label-box-front').click((e) => {
+            this.bringToFront();
+        });
+        $('#label-box-back').click((e) => {
+            this.sendToBack();
+        });
     },
     showXYLine: function(){
-        if(!this.hoveredBox && !this.mouseOut) {
+        if((!this.hoveredBox || this.drawMode)&& !this.mouseOut) {
             this.xAuxLine.visible = true;
             this.yAuxLine.visible = true;
+            if(this.hoveredBox && this.hoveredBox.tab != 'aux') {
+                this.hoveredBox.set('selectable', false);
+            }
         }
     },
     hiddenXYLine: function(){
@@ -552,25 +686,66 @@ labelTool.prototype = {
     canvas: function() {  
         return this._canvas;
     },
-    viewMode: function() {
-        this.editModeOff();
+    viewModeOn: function() {
+        $('.viewer-control-selected').removeClass('viewer-control-selected');
+        $('#label-box-select').addClass('viewer-control-selected');
+        if(this.drawMode) {
+            this.drawMode = false;
+            this.hiddenXYLine();
+            this._canvas.hoverCursor = 'move';
+            this._canvas.renderAll();
+        }
+        if(this.editMode) {
+            this.editMode = false;
+        }
         this.unlockViewer();
-    },
-    drawMode: function() {
-        this.editModeOn();
-        this.lockViewer();
     },
     editModeOn: function() {
         this.editMode = true;
-        this.showXYLine();
-        this._canvas.renderAll();
-        // this.lockViewer();
+        if(this.drawMode) {
+            $('.viewer-control-selected').removeClass('viewer-control-selected');
+            $('#label-box-select').addClass('viewer-control-selected');
+            this.drawMode = false;
+            this.hiddenXYLine();
+            this._canvas.hoverCursor = 'move'; 
+            this._canvas.renderAll();
+            this.unlockViewer();
+        }
+        // else this.lockViewer();
     },
-    editModeOff: function() {
-        this.editMode = false;
-        this.hiddenXYLine();
-        this.unlockViewer();
+    drawModeOn: function(mode) {
+        $('.viewer-control-selected').removeClass('viewer-control-selected');
+        if(mode) $('#label-box-draw-rectangle').addClass('viewer-control-selected');
+        else $('#label-box-draw-polygon').addClass('viewer-control-selected');
+
+        this.drawMode = true;
+        this.drawRectangle = mode;
+
+        if(this.editMode) {
+            this.editMode = false;
+            if(this.selectedBox) {
+                this._canvas.discardActiveObject(this.selectedBox);
+                this.selectedBox.set('strokeDashArray', [10, 10]);
+                this.selectedBox = null;
+            }
+        }
+        this.lockViewer();
+        this.showXYLine()
+        
+        this._canvas.hoverCursor = 'default';
         this._canvas.renderAll();
+    },
+    bringToFront: function() {
+        if(this.selectedBox) {
+            this._canvas.bringToFront(this.selectedBox);
+            this._canvas.renderAll();
+        }
+    },
+    sendToBack: function() {
+        if(this.selectedBox) {
+            this._canvas.sendToBack(this.selectedBox);
+            this._canvas.renderAll();
+        }
     },
     lockViewer: function() { // the viewer can not drag or scaling
         this._osdViewer.zoomPerScroll = 1;
@@ -582,15 +757,7 @@ labelTool.prototype = {
         this._osdViewer.panHorizontal = true;
         this._osdViewer.panVertical = true;
     },
-    startDrawBox: function() {
-        this.lockViewer();
-        this.drawing = true;
-    },
-    endDrawBox: function() {
-        this.drawing = false;
-        this.unlockViewer();
-    },
-    newLabelBox: function(loc) {
+    newLabelBoxRectangle: function(loc) {
         if(this.selectedClass.id != null) {
             var color = this.selectedClass.color + '66';
             var stroke = this.selectedClass.color;
@@ -598,7 +765,7 @@ labelTool.prototype = {
         }
         else {
             var color = 'rgba(160,160,160,0.4)'
-            var stroke = 'rgba(100,100,100,1)'
+            var stroke = 'rgba(80,80,80,1)'
             var classID = null;
         }
         var boxConfig = {
@@ -618,7 +785,34 @@ labelTool.prototype = {
             },
             tab: classID
         }
-        return new labelBox(boxConfig);
+        return new LabelBoxRectangle(boxConfig);
+    },
+    newLabelBoxPolygon: function(points) {
+        if(this.selectedClass.id != null) {
+            var color = this.selectedClass.color + '66';
+            var stroke = this.selectedClass.color;
+            var classID = this.selectedClass.id;
+        }
+        else {
+            var color = 'rgba(160,160,160,0.4)'
+            var stroke = 'rgba(80,80,80,1)'
+            var classID = null;
+        }
+        var config = {
+            points: points,
+            fill: color,
+            opacity: 0.5,
+            strokeWidth: 2,
+            strokeDashArray: [8, 8],
+            stroke: stroke,
+            cornerColor: stroke,
+            strokeUniform: true,
+            _controlsVisibility:{
+                mtr: false
+            },
+            tab: classID
+        }
+        return new LabelBoxPolygon(config);
     },
     addNewBox: function(labelBox) {
         this.labelBoxes[labelBox.id] = labelBox;
@@ -637,14 +831,34 @@ labelTool.prototype = {
     changePosition: function(lastPoint, currentPoint, deltaZoom) {
         for(i in this.labelBoxes) {
             var box = this.labelBoxes[i];
-            x = (box.shape.left - currentPoint.x) * deltaZoom + lastPoint.x
-            y = (box.shape.top - currentPoint.y) * deltaZoom + lastPoint.y
-            w = box.shape.width * deltaZoom;
-            h = box.shape.height * deltaZoom;
-            box.shape.set('left', x);
-            box.shape.set('top', y);
-            box.shape.set('width', w);
-            box.shape.set('height', h);
+            if(box.type == 'rect') {
+                x = (box.shape.left - currentPoint.x) * deltaZoom + lastPoint.x;
+                y = (box.shape.top - currentPoint.y) * deltaZoom + lastPoint.y;
+                w = box.shape.width * deltaZoom;
+                h = box.shape.height * deltaZoom;
+                box.shape.set('left', x);
+                box.shape.set('top', y);
+                box.shape.set('width', w);
+                box.shape.set('height', h);
+            }
+            else if(box.type == 'poly') {
+                x = (box.shape.left - currentPoint.x + 1) * deltaZoom + lastPoint.x - 1;
+                y = (box.shape.top - currentPoint.y + 1) * deltaZoom + lastPoint.y - 1;
+                w = box.shape.width * deltaZoom;
+                h = box.shape.height * deltaZoom;
+                box.shape.set('left', x);
+                box.shape.set('top', y);
+                box.shape.set('width', w);
+                box.shape.set('height', h);
+                offsetX = box.shape.pathOffset.x * deltaZoom;
+                offsetY = box.shape.pathOffset.y * deltaZoom;
+                box.shape.set('pathOffset', {x: offsetX, y: offsetY});
+                var points = box.shape.points;
+                for(i in points) {
+                    points[i].x = points[i].x * deltaZoom;
+                    points[i].y = points[i].y * deltaZoom;
+                }
+            }
         }
     },
     // if the mouse move out the canvas, update the point coordinate
@@ -738,6 +952,17 @@ labelTool.prototype = {
             location.reload();
         });
     },
+    slideFileFilter: function() {
+        $(".slide-file").show();
+        var id = $("#slide-id-filter").val();
+        var state = $("#slide-state-filter").val();
+        if(id != '')
+            $(".slide-file:not([data-id*='" + id + "'])").hide();
+        if(state == '1')
+            $(".slide-file:has(.slide-labeled-icon[hidden])").hide();
+        else if(state == '2')
+            $(".slide-file:not(:has(.slide-labeled-icon[hidden]))").hide();
+    },
     // label class
     getLabelClassInfo: function(id) {
         var index = this.labelClasses.findIndex((value, index, arr) => {
@@ -787,63 +1012,124 @@ labelTool.prototype = {
             for(i in res.boxes) {
                 var box = res.boxes[i];
                 var classID = box.class;
-                var x1 = box.x;
-                var y1 = box.y;
-                var w = box.w;
-                var h = box.h;
-                var x2 = x1 + w;
-                var y2 = y1 + h;
-                // image(slide) point to viewport(OSD)
-                vP1 = this._osdViewer.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(x1,y1));
-                vP2 = this._osdViewer.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(x2,y2));
-                // viewport(OSD) point to pixel(Fabric)
-                fP1 = this._osdViewer.viewport.pixelFromPoint(vP1);
-                fP2 = this._osdViewer.viewport.pixelFromPoint(vP2);
+                if(box.type == undefined || box.type == 'rect') {
+                    var x1 = box.x;
+                    var y1 = box.y;
+                    var w = box.w;
+                    var h = box.h;
+                    var x2 = x1 + w;
+                    var y2 = y1 + h;
+                    // image(slide) point to viewport(OSD)
+                    vP1 = this._osdViewer.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(x1,y1));
+                    vP2 = this._osdViewer.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(x2,y2));
+                    // viewport(OSD) point to pixel(Fabric)
+                    fP1 = this._osdViewer.viewport.pixelFromPoint(vP1);
+                    fP2 = this._osdViewer.viewport.pixelFromPoint(vP2);
 
-                var classInfo = this.getLabelClassInfo(classID);
-                var config = {
-                    left: fP1.x,
-                    top: fP1.y,
-                    width: fP2.x - fP1.x,
-                    height: fP2.y - fP1.y,
-                    fill: classInfo.color + '66',
-                    opacity: 0.5,
-                    strokeWidth: 2,
-                    strokeDashArray: [8, 8],
-                    stroke: classInfo.color,
-                    cornerColor: classInfo.color,
-                    strokeUniform: true,
-                    _controlsVisibility:{
-                        mtr: false
-                    },
-                    tab: classID
+                    var classInfo = this.getLabelClassInfo(classID);
+                    var config = {
+                        left: fP1.x,
+                        top: fP1.y,
+                        width: fP2.x - fP1.x,
+                        height: fP2.y - fP1.y,
+                        fill: classInfo.color + '66',
+                        opacity: 0.5,
+                        strokeWidth: 2,
+                        strokeDashArray: [8, 8],
+                        stroke: classInfo.color,
+                        cornerColor: classInfo.color,
+                        strokeUniform: true,
+                        _controlsVisibility:{
+                            mtr: false
+                        },
+                        tab: classID
+                    }
+                    this.addNewBox(new LabelBoxRectangle(config));
                 }
-                this.addNewBox(new labelBox(config));
+                else {
+                    var points = [];
+                    for(i in box.points) {
+                        // image(slide) point to viewport(OSD)
+                        vP = this._osdViewer.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(box.points[i].x,box.points[i].y));
+                        // viewport(OSD) point to pixel(Fabric)
+                        fP = this._osdViewer.viewport.pixelFromPoint(vP);
+                        points.push(fP);
+                    }
+                    var classInfo = this.getLabelClassInfo(classID);
+                    var config = {
+                        points: points,
+                        fill: classInfo.color + '66',
+                        opacity: 0.5,
+                        strokeWidth: 2,
+                        strokeDashArray: [8, 8],
+                        stroke: classInfo.color,
+                        cornerColor: classInfo.color,
+                        strokeUniform: true,
+                        _controlsVisibility:{
+                            mtr: false
+                        },
+                        tab: classID
+                    }
+                    var boxPoly = new LabelBoxPolygon(config)
+                    this.addNewBox(boxPoly);
+                    this._changeEditMode(boxPoly.shape, boxPoly.shape.cornerColor);
+                }
             }
+            this.saveState = true;
         });
-        this.saveState = true;
     },
     saveLabelBoxes: function() {
         var boxes = [];
         for(i in this.labelBoxes) {
             item = this.labelBoxes[i];
-            x1 = item.shape.left;
-            y1 = item.shape.top;
-            x2 = x1 + item.shape.width * item.shape.scaleX;
-            y2 = y1 + item.shape.height * item.shape.scaleY;
-            // viewport(OSD) point from pixel(Fabric)
-            vP1 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x1,y1));
-            vP2 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x2,y2));
-            // image(slide) point from viewport(OSD)
-            iP1 = this._osdViewer.viewport.viewportToImageCoordinates(vP1.x, vP1.y);
-            iP2 = this._osdViewer.viewport.viewportToImageCoordinates(vP2.x, vP2.y);
-            var box = {
-                class: item.classID,
-                x: iP1.x,
-                y: iP1.y,
-                w: iP2.x - iP1.x,
-                h: iP2.y - iP1.y
-            };
+            if(item.type == 'rect') {
+                // rectangle label box
+                x1 = item.shape.left;
+                y1 = item.shape.top;
+                x2 = x1 + item.shape.width * item.shape.scaleX;
+                y2 = y1 + item.shape.height * item.shape.scaleY;
+                // viewport(OSD) point from pixel(Fabric)
+                vP1 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x1,y1));
+                vP2 = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(x2,y2));
+                // image(slide) point from viewport(OSD)
+                iP1 = this._osdViewer.viewport.viewportToImageCoordinates(vP1.x, vP1.y);
+                iP2 = this._osdViewer.viewport.viewportToImageCoordinates(vP2.x, vP2.y);
+                var box = {
+                    class: item.classID,
+                    type: 'rect',
+                    x: iP1.x,
+                    y: iP1.y,
+                    w: iP2.x - iP1.x,
+                    h: iP2.y - iP1.y
+                };
+            }
+            else {
+                // polygon label box
+                var fPs = [];
+                for(i in item.shape.points) {
+                    var point = fabric.util.transformPoint({
+                        x: (item.shape.points[i].x - item.shape.pathOffset.x),
+                        y: (item.shape.points[i].y - item.shape.pathOffset.y)
+                        }, fabric.util.multiplyTransformMatrices(
+                            item.shape.canvas.viewportTransform,
+                            item.shape.calcTransformMatrix()
+                        ));
+                        fPs.push(point);
+                }
+                var points = [];
+                for(i in fPs) {
+                    // viewport(OSD) point from pixel(Fabric)
+                    vP = this._osdViewer.viewport.pointFromPixel(new OpenSeadragon.Point(fPs[i].x, fPs[i].y));
+                    // image(slide) point from viewport(OSD)
+                    iP = this._osdViewer.viewport.viewportToImageCoordinates(vP.x, vP.y);
+                    points.push(iP);
+                }
+                var box = {
+                    class: item.classID,
+                    type: 'poly',
+                    points: points
+                };
+            }
             boxes.push(box);
         };
         var data = {};
@@ -854,5 +1140,93 @@ labelTool.prototype = {
             this.saveState = true;
             $('#slide_' + this.currentSlide + ' .slide-labeled-icon').removeAttr('hidden');
         });
+    },
+        // ********************************************************
+        // controls api to enable change the shape of a polygon from fabricjs
+        // http:// fabricjs.com/custom-controls-polygon
+        // ********************************************************
+        // define a function that can locate the controls.
+        // this function will be used both for drawing and for interaction.
+        _polygonPositionHandler: function(dim, finalMatrix, fabricObject) {
+            var x = (fabricObject.points[this.pointIndex].x - fabricObject.pathOffset.x),
+                y = (fabricObject.points[this.pointIndex].y - fabricObject.pathOffset.y);
+            return fabric.util.transformPoint({
+                    x: x,
+                    y: y
+                },
+                fabric.util.multiplyTransformMatrices(
+                    fabricObject.canvas.viewportTransform,
+                    fabricObject.calcTransformMatrix()
+                )
+            );
+        },
+    
+        // define a function that will define what the control does
+        // this function will be called on every mouse move after a control has been
+        // clicked and is being dragged.
+        // The function receive as argument the mouse event, the current trasnform object
+        // and the current position in canvas coordinate
+        // transform.target is a reference to the current object being transformed,
+        _actionHandler: function(eventData, transform, x, y) {
+            var polygon = transform.target,
+                currentControl = polygon.controls[polygon.__corner],
+                mouseLocalPosition = polygon.toLocalPoint(new fabric.Point(x, y), 'center', 'center'),
+                polygonBaseSize = polygon._getNonTransformedDimensions(),
+                size = polygon._getTransformedDimensions(0, 0),
+                finalPointPosition = {
+                    x: mouseLocalPosition.x * polygonBaseSize.x / size.x + polygon.pathOffset.x,
+                    y: mouseLocalPosition.y * polygonBaseSize.y / size.y + polygon.pathOffset.y
+                };
+            polygon.points[currentControl.pointIndex] = finalPointPosition; 
+            
+            return true;
+        },
+    
+        // define a function that can keep the polygon in the same position when we change its
+        // width/height/top/left.
+        _anchorWrapper: function(anchorIndex, fn) {
+            return (eventData, transform, x, y) => {
+                this.lockViewer();
+                var fabricObject = transform.target,
+                    absolutePoint = fabric.util.transformPoint({
+                        x: (fabricObject.points[anchorIndex].x - fabricObject.pathOffset.x),
+                        y: (fabricObject.points[anchorIndex].y - fabricObject.pathOffset.y),
+                    }, fabricObject.calcTransformMatrix()),
+                    actionPerformed = fn(eventData, transform, x, y),
+                    newDim = fabricObject._setPositionDimensions({}),
+                    polygonBaseSize = fabricObject._getNonTransformedDimensions(),
+                    newX = (fabricObject.points[anchorIndex].x - fabricObject.pathOffset.x) / polygonBaseSize.x,
+                    newY = (fabricObject.points[anchorIndex].y - fabricObject.pathOffset.y) / polygonBaseSize.y;
+                fabricObject.setPositionByOrigin(absolutePoint, newX + 0.5, newY + 0.5);
+                return actionPerformed;
+            }
+        },
+        _changeEditMode: function(polygon, cornerColor) {
+            // clone what are you copying since you
+            // may want copy and paste on different moment.
+            // and you do not want the changes happened
+            // later to reflect on the copy.
+            polygon.edit = !polygon.edit;
+            if (polygon.edit) {
+                var lastControl = polygon.points.length - 1;
+                polygon.cornerStyle = 'circle';
+                polygon.cornerColor = cornerColor;
+                polygon.controls = polygon.points.reduce((acc, point, index) => {
+                    acc['p' + index] = new fabric.Control({
+                        positionHandler: this._polygonPositionHandler,
+                        actionHandler: this._anchorWrapper(index > 0 ? index - 1 : lastControl, this._actionHandler),
+                        actionName: 'modifyPolygon',
+                        pointIndex: index
+                    });
+                    return acc;
+                }, {});
+            } else {
+                polygon.cornerColor = 'blue';
+                polygon.cornerStyle = 'rect';
+                polygon.controls = fabric.Object.prototype.controls;
+            }
+            polygon.hasBorders = !polygon.edit;
+            this._canvas.requestRenderAll();
+        }
     }
-}
+    
