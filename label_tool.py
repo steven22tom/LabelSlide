@@ -92,8 +92,13 @@ class LabelTool():
             with open(file, 'r') as f:
                 labelBoxes = yaml.load(f, Loader=yaml.RoundTripLoader)
                 for box in labelBoxes['boxes']:
-                    box['x'] =  round(box['x']) - int(left)
-                    box['y'] = round(box['y']) - int(top)
+                    if 'type' not in box or box['type'] == 'rect':
+                        box['x'] = round(box['x']) - int(left)
+                        box['y'] = round(box['y']) - int(top)
+                    else:
+                        for point in box['points']:
+                            point['x'] = round(point['x']) - int(left)
+                            point['y'] = round(point['y']) - int(top)
             return json.dumps(labelBoxes)
         else:
             return '{}'
@@ -102,10 +107,16 @@ class LabelTool():
         id = boxes['slide']
         file = self.slide_index[id]['label_file']
         for box in boxes['boxes']:
-            box['x'] =  round(box['x']) + int(left)
-            box['y'] = round(box['y']) + int(top)
-            box['w'] = round(box['w'])
-            box['h'] = round(box['h'])
+            if box['type'] == 'rect':
+                box['x'] = round(box['x']) + int(left)
+                box['y'] = round(box['y']) + int(top)
+                box['w'] = round(box['w'])
+                box['h'] = round(box['h'])
+            else: 
+                for point in box['points']:
+                    point['x'] = round(point['x']) + int(left)
+                    point['y'] = round(point['y']) + int(top)
         with open(file, 'w', encoding='utf8') as f:
              yaml.dump(boxes, f, Dumper=yaml.RoundTripDumper)
         self.slide_index[id]['labeled'] = True
+
