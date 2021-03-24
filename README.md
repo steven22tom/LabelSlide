@@ -1,7 +1,7 @@
 # LabelSlide
 **LabelSlide is a slide annotation tool and label object bounding boxes in virtual slides (generally used in pathology)**
 
-![example](./demo/ex.bmp)
+![example](./demo/ex.png)
 ## Feature
 LabelSlide is based on B/S structure and written in Python.  
 Using [OpenSlide](https://openslide.org/) to read the virtual slides and create DeepZoom Image.  
