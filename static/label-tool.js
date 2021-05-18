@@ -619,7 +619,7 @@ LabelTool.prototype = {
                 $('#class_'+id.toString()).click((e) => {
                     $('.current-class').removeClass('current-class')
                     $(e.delegateTarget).addClass('current-class');
-                    this.selectedClass.id = $(e.delegateTarget).attr('data-id');
+                    this.selectedClass.id = parseInt($(e.delegateTarget).attr('data-id'));
                     this.selectedClass.name = $(e.delegateTarget).attr('data-name');
                     this.selectedClass.color = $(e.delegateTarget).attr('data-color');
                     
