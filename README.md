@@ -69,7 +69,7 @@ class:
 **If you want to read slide in other formats, you should modify code in label_tool.py by yourself.**
 
 ### Annotation
-Support rectangle box currently. **Adding support for polygon box**
+Support rectangle box and polygon box currently.
 
 **Hotkeys**
 Key|Function
@@ -77,7 +77,6 @@ Key|Function
 q|View Mode
 e|Create new rectangle box
 r|Create new polygon box
-Ctrl + s|Save
 del|Delete the selected rect box
 
 **Annotation file**  
